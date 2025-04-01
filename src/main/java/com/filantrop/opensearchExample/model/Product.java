@@ -15,7 +15,7 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Document(indexName = "marketplace")
+@Document(indexName = "marketplace", alwaysWriteMapping = true)
 public class Product {
     @Id
     private String id;
@@ -35,4 +35,9 @@ public class Product {
     @Field(type = FieldType.Keyword, name = "vendor")
     private String vendor;
 
+    @Field(type = FieldType.Keyword, name = "anotherDescription")
+    private String anotherDescription;
+
+    @Field(type = FieldType.Object, index = false)
+    private AdditionalInfo additionalInfo;
 }

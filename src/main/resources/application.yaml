@@ -5,3 +5,7 @@ opensearch:
   uris: https://localhost:9200
   username: admin
   password: Wpassword1!
+
+logging:
+  level:
+    root: debug

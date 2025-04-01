@@ -1,4 +1,4 @@
-package com.filantrop.opensearch_example;
+package com.filantrop.opensearchExample;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.elasticsearch.annotations.Alias;
+import org.springframework.data.elasticsearch.annotations.Aliases;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
@@ -15,7 +17,18 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Document(indexName = "marketplace", alwaysWriteMapping = true)
+/*Aliases в OpenSearch не работает*/
+@Aliases({
+        @Alias("myalias1"),
+        @Alias("myalias2")
+})
+@Document(indexName = "marketplace",
+        /*и так тоже не работает*/
+        aliases = {
+                @Alias("myalias1"),
+                @Alias("myalias2")
+        }
+)
 public class Product {
     @Id
     private String id;

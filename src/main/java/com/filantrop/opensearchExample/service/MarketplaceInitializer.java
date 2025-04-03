@@ -1,15 +1,13 @@
 package com.filantrop.opensearchExample.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.filantrop.opensearchExample.model.Product;
-import com.google.common.collect.MapDifference;
-import com.google.common.collect.Maps;
 import jakarta.json.stream.JsonParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.opensearch.client.json.JsonpMapper;
 import org.opensearch.client.opensearch.OpenSearchClient;
+import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch._types.mapping.TypeMapping;
 import org.opensearch.client.opensearch.core.ReindexRequest;
 import org.opensearch.client.opensearch.core.reindex.Destination;
@@ -22,13 +20,15 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.IndexInformation;
 import org.springframework.data.elasticsearch.core.document.Document;
+import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -44,18 +44,20 @@ public class MarketplaceInitializer implements InitializingBean {
         log.info("Initializing MarketplaceInitializer");
         log.info("Cluster health status: {}", elasticsearchOperations.cluster().health());
 
-        Map<String, Object> mappingFromCluster = elasticsearchOperations.indexOps(Product.class).getMapping();
-        log.info("Mapping found in elastic: {}", mappingFromCluster);
+        List<IndexInformation> information = elasticsearchOperations.indexOps(Product.class).getInformation();
+        String sourceIndex = information.get(0).getName();
 
-        // todo: json is not equal need another method
-        Document mappingFromClass = elasticsearchOperations.indexOps(Product.class).createMapping();
-        log.info("Mapping found in class: {}", mappingFromClass);
+        boolean needReIndex = false;
+        try {
+            elasticsearchOperations.indexOps(IndexCoordinates.of(sourceIndex)).putMapping(Product.class);
+        } catch (RuntimeException exception) {
+            log.info("On update mapping error occurs!", exception);
+            needReIndex = true;
+        }
 
-
-        if (!isMappingsAreEquals(mappingFromCluster, mappingFromClass)) {
-            List<IndexInformation> information = elasticsearchOperations.indexOps(Product.class).getInformation();
+        if (needReIndex) {
+            log.info("Start reindex!");
             if (!information.isEmpty()) {
-                String sourceIndex = information.get(0).getName();
                 String alias = information.get(0).getAliases().get(0).getAlias();
                 String destIndex = alias + "-" + Instant.now().getEpochSecond();
 
@@ -64,6 +66,7 @@ public class MarketplaceInitializer implements InitializingBean {
                     CreateIndexRequest request = CreateIndexRequest.of(
                             builder -> {
                                 try {
+                                    Document mappingFromClass = elasticsearchOperations.indexOps(Product.class).createMapping();
                                     return builder.index(destIndex)
                                             .mappings(convert(mappingFromClass));
                                 } catch (IOException e) {
@@ -71,16 +74,18 @@ public class MarketplaceInitializer implements InitializingBean {
                                 }
                             }
                     );
-
                     openSearchClient.indices().create(request);
+                    log.info("New index created!");
                 }
 
+                log.info("Start reindex at: {}", DateTimeFormatter.ISO_DATE_TIME.format(OffsetDateTime.now()));
                 ReindexRequest reindexRequest = new ReindexRequest.Builder()
                         .waitForCompletion(true)
                         .source(Source.of(builder -> builder.index(sourceIndex)))
                         .dest(Destination.of(builder -> builder.index(destIndex)))
                         .build();
                 openSearchClient.reindex(reindexRequest);
+                log.info("End reindex at: {}", DateTimeFormatter.ISO_DATE_TIME.format(OffsetDateTime.now()));
 
                 openSearchClient.indices().updateAliases(
                         builder -> builder.actions(
@@ -92,25 +97,10 @@ public class MarketplaceInitializer implements InitializingBean {
                                 )
                         )
                 );
-
+                log.info("Aliases updated at: {}", DateTimeFormatter.ISO_DATE_TIME.format(OffsetDateTime.now()));
                 openSearchClient.indices().delete(builder -> builder.index(sourceIndex));
             }
         }
-
-        Map<String, Object> newActualMapping = elasticsearchOperations.indexOps(Product.class).getMapping();
-        log.info("Mapping found in elastic: {}", mappingFromCluster);
-        MapDifference<String, Object> diff2 = Maps.difference(mappingFromClass, newActualMapping);
-        if (!diff2.areEqual()) {
-            log.info("Not equal found in elastic");
-        }
-    }
-
-    private boolean isMappingsAreEquals(Map<String, Object> mappingFromCluster, Document mappingFromClass) throws JsonProcessingException {
-        //todo: create method to compare two mappings
-/*        JsonNode mappingFromClassJson = objectMapper.readTree(objectMapper.writeValueAsString(mappingFromClass));
-        JsonNode mappingFromClusterJson = objectMapper.readTree(objectMapper.writeValueAsString(mappingFromCluster));
-        return mappingFromClassJson.equals(mappingFromClusterJson);*/
-        return true;
     }
 
     private TypeMapping convert(Document mapping) throws IOException {

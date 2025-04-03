@@ -23,7 +23,7 @@ public class Product {
     @Field(type = FieldType.Text, name = "name")
     private String name;
 
-    @Field(type = FieldType.Double, name = "price")
+    @Field(type = FieldType.Float, name = "price")
     private BigDecimal price;
 
     @Field(type = FieldType.Integer, name = "quantity")
@@ -46,4 +46,7 @@ public class Product {
 
     @Field(type = FieldType.Text, name = "anotherText")
     private String anotherText;
+
+    @Field(type = FieldType.Text, name = "andAnotherText")
+    private String andAnotherText;
 }

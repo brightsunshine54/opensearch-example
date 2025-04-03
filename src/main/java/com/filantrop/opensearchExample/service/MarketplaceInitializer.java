@@ -1,74 +1,127 @@
 package com.filantrop.opensearchExample.service;
 
-import com.filantrop.opensearchExample.model.AdditionalInfo;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.filantrop.opensearchExample.model.Product;
-import com.filantrop.opensearchExample.repository.MarketplaceRepository;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
-import lombok.AllArgsConstructor;
+import jakarta.json.stream.JsonParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.opensearch.client.json.JsonpMapper;
 import org.opensearch.client.opensearch.OpenSearchClient;
+import org.opensearch.client.opensearch._types.mapping.TypeMapping;
 import org.opensearch.client.opensearch.core.ReindexRequest;
+import org.opensearch.client.opensearch.core.reindex.Destination;
+import org.opensearch.client.opensearch.core.reindex.Source;
+import org.opensearch.client.opensearch.indices.CreateIndexRequest;
+import org.opensearch.client.opensearch.indices.update_aliases.Action;
+import org.opensearch.client.opensearch.indices.update_aliases.AddAction;
+import org.opensearch.client.opensearch.indices.update_aliases.RemoveAction;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
+import org.springframework.data.elasticsearch.core.IndexInformation;
 import org.springframework.data.elasticsearch.core.document.Document;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
+import java.io.IOException;
+import java.io.StringReader;
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class MarketplaceInitializer implements InitializingBean {
-    //private final MarketplaceRepository repository;
     private final ElasticsearchOperations elasticsearchOperations;
     private final OpenSearchClient openSearchClient;
+    private final JsonpMapper jsonpMapper;
+    private final ObjectMapper objectMapper;
 
     @Override
-    public void afterPropertiesSet() {
+    public void afterPropertiesSet() throws IOException {
         log.info("Initializing MarketplaceInitializer");
         log.info("Cluster health status: {}", elasticsearchOperations.cluster().health());
 
-        Map<String, Object> actualMapping = elasticsearchOperations.indexOps(Product.class).getMapping();
-        log.info("Mapping found in elastic: {}", actualMapping);
+        Map<String, Object> mappingFromCluster = elasticsearchOperations.indexOps(Product.class).getMapping();
+        log.info("Mapping found in elastic: {}", mappingFromCluster);
 
-        Document mapping = elasticsearchOperations.indexOps(Product.class).createMapping();
-        log.info("Mapping found in class: {}", mapping);
+        // todo: json is not equal need another method
+        Document mappingFromClass = elasticsearchOperations.indexOps(Product.class).createMapping();
+        log.info("Mapping found in class: {}", mappingFromClass);
 
-        MapDifference<String, Object> diff = Maps.difference(actualMapping, mapping);
 
-        openSearchClient.reindex(ReindexRequest.of());
+        if (!isMappingsAreEquals(mappingFromCluster, mappingFromClass)) {
+            List<IndexInformation> information = elasticsearchOperations.indexOps(Product.class).getInformation();
+            if (!information.isEmpty()) {
+                String sourceIndex = information.get(0).getName();
+                String alias = information.get(0).getAliases().get(0).getAlias();
+                String destIndex = alias + "-" + Instant.now().getEpochSecond();
 
-/*        if (diff.areEqual()){
-            return;
+                boolean exists = openSearchClient.indices().exists(builder -> builder.index(destIndex)).value();
+                if (!exists) {
+                    CreateIndexRequest request = CreateIndexRequest.of(
+                            builder -> {
+                                try {
+                                    return builder.index(destIndex)
+                                            .mappings(convert(mappingFromClass));
+                                } catch (IOException e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }
+                    );
+
+                    openSearchClient.indices().create(request);
+                }
+
+                ReindexRequest reindexRequest = new ReindexRequest.Builder()
+                        .waitForCompletion(true)
+                        .source(Source.of(builder -> builder.index(sourceIndex)))
+                        .dest(Destination.of(builder -> builder.index(destIndex)))
+                        .build();
+                openSearchClient.reindex(reindexRequest);
+
+                openSearchClient.indices().updateAliases(
+                        builder -> builder.actions(
+                                Action.of(builder1 -> builder1.add(
+                                        AddAction.of(builder2 -> builder2.alias(alias).index(destIndex)))
+                                ),
+                                Action.of(builder1 -> builder1.remove(
+                                        RemoveAction.of(builder2 -> builder2.alias(alias).index(sourceIndex)))
+                                )
+                        )
+                );
+
+                openSearchClient.indices().delete(builder -> builder.index(sourceIndex));
+            }
         }
 
-        boolean delete = elasticsearchOperations.indexOps(IndexCoordinatesProduct.class).delete();
-        boolean withMapping = elasticsearchOperations.indexOps(Product.class).createWithMapping();*/
+        Map<String, Object> newActualMapping = elasticsearchOperations.indexOps(Product.class).getMapping();
+        log.info("Mapping found in elastic: {}", mappingFromCluster);
+        MapDifference<String, Object> diff2 = Maps.difference(mappingFromClass, newActualMapping);
+        if (!diff2.areEqual()) {
+            log.info("Not equal found in elastic");
+        }
+    }
 
+    private boolean isMappingsAreEquals(Map<String, Object> mappingFromCluster, Document mappingFromClass) throws JsonProcessingException {
+        //todo: create method to compare two mappings
+/*        JsonNode mappingFromClassJson = objectMapper.readTree(objectMapper.writeValueAsString(mappingFromClass));
+        JsonNode mappingFromClusterJson = objectMapper.readTree(objectMapper.writeValueAsString(mappingFromCluster));
+        return mappingFromClassJson.equals(mappingFromClusterJson);*/
+        return true;
+    }
 
+    private TypeMapping convert(Document mapping) throws IOException {
+        String type = objectMapper.writeValueAsString(mapping);
 
-        /*        repository.save(new Product(
-                "5",
-                "Utopia Bedding Bed Pillowsrtyrty",
-                new BigDecimal(39.99),
-                2,
-                "These professionally finished pillows, with high thread counts, provide great comfort against your skin along with added durability "
-                        + "that easily resists wear and tear to ensure a finished look for your bedroom.",
-                "Utopia Bedding",
-                "fdsgdfgdfgdf",
-                null));
+        try (JsonParser mappingsParser =
+                     jsonpMapper
+                             .jsonProvider()
+                             .createParser(new StringReader(type))) {
 
-        repository.save(new Product(
-                "6",
-                "Echo Dot Smart speakeryuertyurtyuty",
-                new BigDecimal(34.99),
-                10,
-                "Our most popular smart speaker with a fabric design. It is our most compact smart speaker that fits perfectly into small spaces.",
-                "Amazon",
-                "dfghfghfghfgyutyuty",
-                new AdditionalInfo("Key", 1)));*/
+            return TypeMapping._DESERIALIZER.deserialize(mappingsParser, jsonpMapper);
+        }
     }
 }

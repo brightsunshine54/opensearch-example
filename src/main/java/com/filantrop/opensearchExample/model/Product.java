@@ -43,4 +43,7 @@ public class Product {
 
     @Field(type = FieldType.Text, name = "text")
     private String text;
+
+    @Field(type = FieldType.Text, name = "anotherText")
+    private String anotherText;
 }

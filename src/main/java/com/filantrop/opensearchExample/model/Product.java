@@ -15,7 +15,7 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Document(indexName = "goods")  //goods - alias, indexName = "marketplace"
+@Document(indexName = "goods")
 public class Product {
     @Id
     private String id;
@@ -32,12 +32,15 @@ public class Product {
     @Field(type = FieldType.Text, name = "description")
     private String description;
 
-    @Field(type = FieldType.Keyword, name = "vendor")
+    @Field(type = FieldType.Text, name = "vendor")
     private String vendor;
 
-    @Field(type = FieldType.Keyword, name = "anotherDescription")
+    @Field(type = FieldType.Text, name = "anotherDescription")
     private String anotherDescription;
 
     @Field(type = FieldType.Object, index = false)
     private AdditionalInfo additionalInfo;
+
+    @Field(type = FieldType.Text, name = "text")
+    private String text;
 }

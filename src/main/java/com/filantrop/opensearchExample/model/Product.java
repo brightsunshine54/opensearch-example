@@ -10,6 +10,7 @@ import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 
 @Data
 @NoArgsConstructor
@@ -20,33 +21,30 @@ public class Product {
     @Id
     private String id;
 
-    @Field(type = FieldType.Text, name = "name")
+    @Field(type = FieldType.Text)
     private String name;
 
-    @Field(type = FieldType.Float, name = "price")
+    @Field(type = FieldType.Float)
     private BigDecimal price;
 
-    @Field(type = FieldType.Integer, name = "quantity")
+    @Field(type = FieldType.Integer)
     private Integer quantity;
 
-    @Field(type = FieldType.Text, name = "description")
+    @Field(type = FieldType.Text)
     private String description;
 
-    @Field(type = FieldType.Text, name = "vendor")
+    @Field(type = FieldType.Text)
     private String vendor;
 
-    @Field(type = FieldType.Text, name = "anotherDescription")
+    @Field(type = FieldType.Text)
     private String anotherDescription;
 
-    @Field(type = FieldType.Object, index = false)
-    private AdditionalInfo additionalInfo;
-
-    @Field(type = FieldType.Text, name = "text")
+    @Field(type = FieldType.Text)
     private String text;
 
-    @Field(type = FieldType.Text, name = "anotherText")
-    private String anotherText;
+    @Field(type = FieldType.Date)
+    private OffsetDateTime modificationDateTime;
 
-    @Field(type = FieldType.Text, name = "andAnotherText")
-    private String andAnotherText;
+    @Field(type = FieldType.Date)
+    private OffsetDateTime createdDateTime;
 }

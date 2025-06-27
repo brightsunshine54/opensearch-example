@@ -47,4 +47,7 @@ public class Product {
 
     @Field(type = FieldType.Date)
     private OffsetDateTime createdDateTime;
+
+    @Field(type = FieldType.Long)
+    private Long timestamp;
 }

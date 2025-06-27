@@ -122,6 +122,7 @@ public class MarketplaceInitializer implements InitializingBean {
         initialProduct.setPrice(BigDecimal.valueOf(10.0));
         initialProduct.setModificationDateTime(OffsetDateTime.now().minusMinutes(5));
         initialProduct.setCreatedDateTime(createdAt);
+        initialProduct.setTimestamp(initialProduct.getModificationDateTime().toInstant().toEpochMilli());
 
         createOrUpdateProduct(initialProduct);
 
@@ -129,10 +130,11 @@ public class MarketplaceInitializer implements InitializingBean {
         Product updatedProduct = new Product();
         updatedProduct.setId(id);
         updatedProduct.setQuantity(10);
-        updatedProduct.setName("Updated Product Name");
+        updatedProduct.setName("Updated Product Name2222");
         updatedProduct.setPrice(BigDecimal.valueOf(12.0));
         updatedProduct.setModificationDateTime(OffsetDateTime.now());
         updatedProduct.setCreatedDateTime(createdAt);
+        updatedProduct.setTimestamp(updatedProduct.getModificationDateTime().toInstant().toEpochMilli());
 
         createOrUpdateProduct(updatedProduct);
 
@@ -145,6 +147,7 @@ public class MarketplaceInitializer implements InitializingBean {
         outdatedProduct.setPrice(BigDecimal.valueOf(15.0));
         outdatedProduct.setModificationDateTime(OffsetDateTime.now().minusMinutes(10));
         outdatedProduct.setCreatedDateTime(createdAt);
+        outdatedProduct.setTimestamp(outdatedProduct.getModificationDateTime().toInstant().toEpochMilli());
 
         createOrUpdateProduct(outdatedProduct);
     }
@@ -152,9 +155,7 @@ public class MarketplaceInitializer implements InitializingBean {
     private void createOrUpdateProduct(Product product) throws IOException {
         Map<String, JsonData> paramsMap = new HashMap<>();
         paramsMap.put("product", JsonData.of(product, jsonpMapper));
-        paramsMap.put("quantity", JsonData.of(product.getQuantity(), jsonpMapper));
-/*        paramsMap.put("updatedProduct", JsonData.of(product, jsonpMapper));
-        paramsMap.put("newModificationDateTime", JsonData.of(product.getModificationDateTime().toString()));*/
+        paramsMap.put("timestamp", JsonData.of(product.getTimestamp(), jsonpMapper));
 
         UpdateRequest<JsonData, JsonData> request = UpdateRequest.of(ur -> ur
                 .index("goods")
@@ -163,7 +164,7 @@ public class MarketplaceInitializer implements InitializingBean {
                                         InlineScript.of(in ->
                                                 in.lang("painless")
                                                         .source("""
-                                                                if (Integer.parseInt(ctx._source.quantity) < Integer.parseInt(params.quantity)){
+                                                                if (Long.parseLong(ctx._source.timestamp) < Long.parseLong(params.timestamp)){
                                                                    ctx._source = params.product
                                                                 }
                                                                 """)
@@ -174,7 +175,6 @@ public class MarketplaceInitializer implements InitializingBean {
                 //.doc(JsonData.of(product, jsonpMapper))
                 .upsert(JsonData.of(product, jsonpMapper))
         );
-
 
         openSearchClient.update(request, JsonData.class);
     }

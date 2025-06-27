@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.opensearch.client.json.JsonData;
 import org.opensearch.client.json.JsonpMapper;
 import org.opensearch.client.opensearch.OpenSearchClient;
+import org.opensearch.client.opensearch._types.InlineScript;
 import org.opensearch.client.opensearch._types.Script;
 import org.opensearch.client.opensearch._types.mapping.TypeMapping;
 import org.opensearch.client.opensearch.core.ReindexRequest;
@@ -117,6 +118,7 @@ public class MarketplaceInitializer implements InitializingBean {
         Product initialProduct = new Product();
         initialProduct.setId(id);
         initialProduct.setName("Initial Product");
+        initialProduct.setQuantity(1);
         initialProduct.setPrice(BigDecimal.valueOf(10.0));
         initialProduct.setModificationDateTime(OffsetDateTime.now().minusMinutes(5));
         initialProduct.setCreatedDateTime(createdAt);
@@ -126,6 +128,7 @@ public class MarketplaceInitializer implements InitializingBean {
         // Simulate an update with a newer modification date
         Product updatedProduct = new Product();
         updatedProduct.setId(id);
+        updatedProduct.setQuantity(10);
         updatedProduct.setName("Updated Product Name");
         updatedProduct.setPrice(BigDecimal.valueOf(12.0));
         updatedProduct.setModificationDateTime(OffsetDateTime.now());
@@ -137,6 +140,7 @@ public class MarketplaceInitializer implements InitializingBean {
         //Attempt to update with older date
         Product outdatedProduct = new Product();
         outdatedProduct.setId(id);
+        outdatedProduct.setQuantity(5);
         outdatedProduct.setName("Outdated Update");
         outdatedProduct.setPrice(BigDecimal.valueOf(15.0));
         outdatedProduct.setModificationDateTime(OffsetDateTime.now().minusMinutes(10));
@@ -147,42 +151,28 @@ public class MarketplaceInitializer implements InitializingBean {
 
     private void createOrUpdateProduct(Product product) throws IOException {
         Map<String, JsonData> paramsMap = new HashMap<>();
-        // paramsMap.put("product", JsonData.of(product, jsonpMapper));
-        paramsMap.put("updatedProduct", JsonData.of(product, jsonpMapper));
-        paramsMap.put("newModificationDateTime", JsonData.of(product.getModificationDateTime().toString()));
+        paramsMap.put("product", JsonData.of(product, jsonpMapper));
+        paramsMap.put("quantity", JsonData.of(product.getQuantity(), jsonpMapper));
+/*        paramsMap.put("updatedProduct", JsonData.of(product, jsonpMapper));
+        paramsMap.put("newModificationDateTime", JsonData.of(product.getModificationDateTime().toString()));*/
 
         UpdateRequest<JsonData, JsonData> request = UpdateRequest.of(ur -> ur
-                        .index("goods")
-                        .id(product.getId())
-                        //.doc(JsonData.of(product, jsonpMapper))
-                        .script(s ->
-                                        s.inline(in ->
-                                                        in.lang("painless")
-                                                                .source(
-                                                                        """
-                                                                                if (ctx._source.modificationDateTime == null ||
-                                                                                    params.newModificationDateTime.isAfter(ctx._source.modificationDateTime)) {
-                                                                                    ctx._source.name = params.updatedProduct.name;
-                                                                                    ctx._source.price = params.updatedProduct.price;
-                                                                                    ctx._source.quantity = params.updatedProduct.quantity;
-                                                                                    ctx._source.description = params.updatedProduct.description;
-                                                                                    ctx._source.vendor = params.updatedProduct.vendor;
-                                                                                    ctx._source.anotherDescription = params.updatedProduct.anotherDescription;
-                                                                                    ctx._source.text = params.updatedProduct.text;
-                                                                                    ctx._source.modificationDateTime = params.newModificationDateTime;
-                                                                                }
-                                                                                """
-/*                                                """
-                                                        if (ctx._source.modificationDateTime < params.product.modificationDateTime) {
-                                                            ctx._source = params.product;
-                                                        }
-                                                        """*/
-                                                                )
-                                                                .params(paramsMap)
-                                        )
-
+                .index("goods")
+                .id(product.getId())
+                .script(Script.of(builder -> builder.inline(
+                                        InlineScript.of(in ->
+                                                in.lang("painless")
+                                                        .source("""
+                                                                if (Integer.parseInt(ctx._source.quantity) < Integer.parseInt(params.quantity)){
+                                                                   ctx._source = params.product
+                                                                }
+                                                                """)
+                                                        .params(paramsMap))
+                                )
                         )
-                        .upsert(JsonData.of(product, jsonpMapper))
+                )
+                //.doc(JsonData.of(product, jsonpMapper))
+                .upsert(JsonData.of(product, jsonpMapper))
         );
 
 
